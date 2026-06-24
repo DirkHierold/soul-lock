@@ -48,7 +48,6 @@
             overflow: hidden;
         }
 
-        /* Sprite/Ei füllt die Zelle komplett aus */
         .grid-cell img {
             width: 100%;
             height: 100%;
@@ -57,7 +56,6 @@
             display: block;
         }
 
-        /* Highlight für das zuletzt gefangene Pokémon */
         .grid-cell.latest-catch {
             border-color: #4ade80 !important;
             animation: highlight-pulse 1.5s infinite ease-in-out;
@@ -69,7 +67,7 @@
             100% { box-shadow: 0 0 5px #4ade80; }
         }
 
-        /* 2. BRUT-PHASE: Das Vollbild-Overlay */
+        /* 2. OVERLAY als Modal - halbtransparenter Backdrop, Grid bleibt sichtbar */
         #overlay-screen {
             display: none;
             position: fixed;
@@ -77,7 +75,9 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: #05070f;
+            background: rgba(5, 7, 15, 0.65);
+            backdrop-filter: blur(2px);
+            -webkit-backdrop-filter: blur(2px);
             z-index: 100;
             flex-direction: column;
             align-items: center;
@@ -98,7 +98,6 @@
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        /* Sprite/Ei füllt den Inkubator komplett aus */
         #overlaySprite {
             width: 100%;
             height: 100%;
@@ -113,52 +112,83 @@
             color: #38bdf8;
         }
 
-        /* Dimm-Zustand für OLED-Modus */
-        body.eco-mode #overlay-screen { background: #000000 !important; }
-        body.eco-mode #timer          { opacity: 0 !important; }
+        /* Reset-Button (nur im RESET_PROMPT sichtbar) */
+        #resetBtn {
+            display: none;
+            margin-top: 30px;
+            padding: 12px 24px;
+            font-family: monospace;
+            font-size: 22px;
+            color: #38bdf8;
+            background: #0f172a;
+            border: 4px solid #38bdf8;
+            cursor: pointer;
+        }
+        #resetBtn:active {
+            background: #38bdf8;
+            color: #0f172a;
+        }
+
+        /* DIMM-Modus: Grid weg, kein sichtbares Overlay, nur pulsierendes Ei */
+        body.eco-mode #pokedex-screen { visibility: hidden; }
+        body.eco-mode #overlay-screen {
+            background: #000000 !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+        body.eco-mode #timer { opacity: 0 !important; }
+        body.eco-mode #resetBtn { opacity: 0 !important; }
         body.eco-mode #incubator {
             transform: scale(0.45);
             background: transparent !important;
-            border-color: rgba(56, 189, 248, 0.2) !important;
+            border-color: rgba(56, 189, 248, 0) !important;
             box-shadow: none !important;
             animation: pulse-eco 2.5s infinite ease-in-out;
         }
         body.eco-mode #overlaySprite {
             filter: brightness(0) invert(1) drop-shadow(0 0 4px #38bdf8);
         }
-
         @keyframes pulse-eco {
             0%   { opacity: 0.6; }
             50%  { opacity: 1; }
             100% { opacity: 0.6; }
         }
+
+        /* DIMM-Modus + Erfolg: grünes Pulsieren */
+        body.eco-mode.eco-success #overlaySprite {
+            filter: brightness(0) invert(1) drop-shadow(0 0 6px #4ade80);
+            animation: pulse-eco-success 1.4s infinite ease-in-out;
+        }
+        @keyframes pulse-eco-success {
+            0%   { opacity: 0.7; transform: scale(1); }
+            50%  { opacity: 1;   transform: scale(1.15); }
+            100% { opacity: 0.7; transform: scale(1); }
+        }
     </style>
 </head>
 <body>
 
-    <!-- Start-Screen mit Pokedex-Raster -->
+    <!-- Start-Screen mit Pokedex-Raster (immer im Hintergrund sichtbar) -->
     <div id="pokedex-screen" onclick="openOverlayForHatching()">
-        <div class="grid-2x2" id="pokedexGrid">
-            <!-- Zellen (IDs 1, 4, 7, 25) werden per JS generiert -->
-        </div>
+        <div class="grid-2x2" id="pokedexGrid"></div>
     </div>
 
-    <!-- Gameplay-Overlay -->
+    <!-- Modal-Overlay -->
     <div id="overlay-screen" onclick="handleOverlayClick()">
         <div id="incubator">
             <img id="overlaySprite" src="egg.png" alt="status">
         </div>
         <div id="timer">00:10</div>
+        <button id="resetBtn" onclick="resetGame(event)">Reset?</button>
     </div>
 
     <script>
-        // Pokedex-Reihenfolge der 4 Test-Pokémon
         const DEX_IDS = [1, 4, 7, 25];
 
-        let duration = 10; // Test-Timer
+        let duration = 10;
         let lastTime = Date.now();
 
-        // Spielzustände: 'IDLE', 'RUNNING', 'ECO', 'SUCCESS', 'FAILED'
+        // 'IDLE', 'RUNNING', 'ECO', 'SUCCESS', 'FAILED', 'RESET_PROMPT'
         let gameState = 'IDLE';
         let currentRewardId = null;
         let wakeLock = null;
@@ -173,7 +203,6 @@
             renderPokedexGrid();
         });
 
-        // Generiert das 2x2 Raster basierend auf dem Speicher
         function renderPokedexGrid() {
             const caughtList = JSON.parse(localStorage.getItem('caught_ids')) || [];
             const latestCatch = localStorage.getItem('latest_catch_id');
@@ -190,25 +219,26 @@
 
                 const img = document.createElement('img');
                 if (caughtList.includes(id)) {
-                    img.src = `${id}.png`;   // Gefangen -> Vorderseite
+                    img.src = `${id}.png`;
                     img.alt = `#${id}`;
                 } else {
-                    img.src = "egg.png";     // Noch nicht gefangen -> Ei
+                    img.src = "egg.png";
                     img.alt = "egg";
                 }
-
                 cell.appendChild(img);
                 gridContainer.appendChild(cell);
             });
         }
 
-        // Wählt ein noch nicht gefangenes Pokémon für die kommende Brut
+        function allCaught() {
+            const caughtList = JSON.parse(localStorage.getItem('caught_ids')) || [];
+            return DEX_IDS.every(id => caughtList.includes(id));
+        }
+
         function pickRewardId() {
             const caughtList = JSON.parse(localStorage.getItem('caught_ids')) || [];
             const uncaught = DEX_IDS.filter(id => !caughtList.includes(id));
-
             if (uncaught.length === 0) {
-                // Alle bereits gefangen -> Fallback: irgendeine ID
                 return DEX_IDS[Math.floor(Math.random() * DEX_IDS.length)];
             }
             return uncaught[Math.floor(Math.random() * uncaught.length)];
@@ -217,7 +247,12 @@
         async function openOverlayForHatching() {
             if (gameState !== 'IDLE') return;
 
-            // Ziel-Pokémon VOR dem Brüten festlegen, damit Vorder- und Rückseite zusammenpassen
+            // Alles gefangen? -> Reset-Prompt statt Brüten
+            if (allCaught()) {
+                openResetPrompt();
+                return;
+            }
+
             currentRewardId = pickRewardId();
 
             gameState = 'RUNNING';
@@ -234,10 +269,28 @@
             document.getElementById('overlaySprite').src = "egg.png";
             document.getElementById('incubator').style.borderColor = "#38bdf8";
             document.getElementById('timer').style.color = "#38bdf8";
+            document.getElementById('timer').style.display = "block";
+            document.getElementById('resetBtn').style.display = "none";
             updateTimerDisplay();
 
             lastTime = Date.now();
             startTimer();
+        }
+
+        function openResetPrompt() {
+            gameState = 'RESET_PROMPT';
+            document.getElementById('overlay-screen').style.display = 'flex';
+            document.getElementById('overlaySprite').src = "egg.png";
+            document.getElementById('incubator').style.borderColor = "#38bdf8";
+            document.getElementById('timer').style.display = "none";
+            document.getElementById('resetBtn').style.display = "inline-block";
+        }
+
+        function resetGame(event) {
+            event.stopPropagation();
+            localStorage.removeItem('caught_ids');
+            localStorage.removeItem('latest_catch_id');
+            closeOverlayAndReset();
         }
 
         function startTimer() {
@@ -282,17 +335,17 @@
                 document.body.classList.remove('eco-mode');
                 lastTime = Date.now();
             }
-            else if (gameState === 'SUCCESS' || gameState === 'FAILED') {
+            else if (gameState === 'SUCCESS' || gameState === 'FAILED' || gameState === 'RESET_PROMPT') {
                 closeOverlayAndReset();
             }
         }
 
         function triggerSuccess() {
             clearInterval(countdownInterval);
+            const wasInEco = document.body.classList.contains('eco-mode');
             gameState = 'SUCCESS';
             localStorage.setItem('soul_state', 'SUCCESS');
 
-            // currentRewardId wurde bereits beim Start festgelegt
             let caughtList = JSON.parse(localStorage.getItem('caught_ids')) || [];
             if (!caughtList.includes(currentRewardId)) {
                 caughtList.push(currentRewardId);
@@ -300,14 +353,41 @@
             }
             localStorage.setItem('latest_catch_id', currentRewardId);
 
-            // Visuelles Feedback (Erfolg) - nur grüner Rahmen, kein Haken
             document.getElementById('overlaySprite').src = `${currentRewardId}.png`;
             document.getElementById('incubator').style.borderColor = "#4ade80";
+            document.getElementById('timer').style.color = "#4ade80";
 
-            if (document.body.classList.contains('eco-mode')) {
-                document.body.classList.remove('eco-mode');
+            if (wasInEco) {
+                // Im Dimm-Modus bleiben, grün pulsieren, vibrieren, kleinen Ton spielen
+                document.body.classList.add('eco-success');
+                celebrateInEco();
             }
+
             if (wakeLock) wakeLock.release();
+        }
+
+        function celebrateInEco() {
+            // Vibration
+            if ('vibrate' in navigator) {
+                try { navigator.vibrate([120, 60, 120]); } catch(e) {}
+            }
+            // Kleiner Ton via Web Audio (kein File nötig)
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                const ctx = new AudioCtx();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.18);
+                gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.4);
+            } catch(e) {}
         }
 
         function shatterEgg() {
@@ -315,7 +395,6 @@
             gameState = 'FAILED';
             localStorage.setItem('soul_state', 'FAILED');
 
-            // currentRewardId wurde bereits beim Start festgelegt -> passende Rückseite
             document.getElementById('overlaySprite').src = `${currentRewardId}_back.png`;
             document.getElementById('incubator').style.borderColor = "#f87171";
             document.getElementById('timer').style.color = "#f87171";
@@ -330,6 +409,11 @@
             gameState = 'IDLE';
             localStorage.setItem('soul_state', 'IDLE');
             document.getElementById('overlay-screen').style.display = 'none';
+            document.body.classList.remove('eco-mode');
+            document.body.classList.remove('eco-success');
+            document.getElementById('resetBtn').style.display = "none";
+            document.getElementById('timer').style.display = "block";
+            document.getElementById('timer').style.color = "#38bdf8";
             renderPokedexGrid();
         }
 

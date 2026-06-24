@@ -13,11 +13,24 @@
             padding-top: 60px; 
             margin: 0;
             overflow: hidden;
+            transition: background 0.5s, opacity 0.5s;
         }
-        h1 { font-weight: 300; letter-spacing: 2px; color: #a182ff; }
-        p { color: #7a7a8c; font-size: 14px; padding: 0 20px; }
         
-        /* Die pulsierende Seelen-Aura */
+        /* Eco-Modus Klasse für maximales Stromsparen */
+        body.eco-mode {
+            background: #000000 !important;
+        }
+        body.eco-mode h1, body.eco-mode p, body.eco-mode button, body.eco-mode #timer {
+            opacity: 0.02; /* Fast unsichtbar = Pixel verbrauchen kaum Strom */
+            pointer-events: none;
+        }
+        body.eco-mode #aura-container {
+            transform: scale(0.2); /* Aura winzig machen */
+        }
+
+        h1 { font-weight: 300; letter-spacing: 2px; color: #a182ff; transition: opacity 0.5s; }
+        p { color: #7a7a8c; font-size: 14px; padding: 0 20px; transition: opacity 0.5s; }
+        
         #aura-container {
             width: 200px;
             height: 200px;
@@ -26,12 +39,10 @@
             display: flex;
             align-items: center;
             justify-content: center;
-        }
-        #aura { 
-            font-size: 70px; 
-            z-index: 2;
             transition: all 0.5s;
         }
+        #aura { font-size: 70px; z-index: 2; }
+        
         .glow-ring {
             position: absolute;
             width: 100%;
@@ -41,7 +52,6 @@
             box-shadow: 0 0 20px #5a3eff, inset 0 0 20px #5a3eff;
             animation: pulse 3s infinite ease-in-out;
             opacity: 0;
-            transition: opacity 0.5s;
         }
         @keyframes pulse {
             0% { transform: scale(0.95); opacity: 0.5; }
@@ -53,7 +63,7 @@
         .alive { color: #5effa3; }
         .dead { color: #ff5e5e; }
         
-        #timer { font-size: 32px; font-weight: 200; margin-top: 10px; color: #ffffff; }
+        #timer { font-size: 32px; font-weight: 200; margin-top: 10px; color: #ffffff; transition: opacity 0.5s; }
         
         button {
             background: #251b4e;
@@ -63,35 +73,68 @@
             font-size: 16px;
             border-radius: 25px;
             cursor: pointer;
-            margin-top: 20px;
+            margin: 10px 5px;
             transition: all 0.3s;
         }
         button:hover { background: #34257c; color: #ffffff; }
+        
+        #ecoBtn {
+            background: #111118;
+            border-color: #333;
+            color: #666;
+            display: none;
+        }
+        
+        /* Ein unsichtbarer Klick-Overlay für den Eco-Modus-Ausstieg */
+        #eco-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 9999;
+            display: none;
+        }
     </style>
 </head>
 <body>
 
-    <h1>SOUL LOCK</h1>
-    <p id="instruction">Starte das Ritual. Wenn du die App aktiv wechselst, bricht deine Seele und der Fortschritt geht verloren.</p>
+    <h1 id="title">SOUL LOCK</h1>
+    <p id="instruction">Starte das Ritual. Wenn du die App schließt oder wechselst, bricht deine Seele.</p>
     
     <div id="aura-container">
         <div id="glow" class="glow-ring"></div>
         <div id="aura">🔒</div>
     </div>
     
-    <div id="statusText" class="status">Bereit für das Ritual...</div>
+    <div id="statusText" class="status">Prüfe Seelenzustand...</div>
     <div id="timer">10:00</div>
     
     <button id="startBtn" onclick="startRitual()">Ritual Starten</button>
+    <button id="ecoBtn" onclick="toggleEcoMode()">⚡ Eco-Modus (Bildschirm dimmen)</button>
+    <button id="resetBtn" onclick="forceReset()" style="display:none; background:#4e1b1b; border-color:#ff5e5e; color:#ff5e5e;">Neues Ritual starten</button>
+
+    <div id="eco-overlay" onclick="toggleEcoMode()"></div>
 
     <script>
-        let duration = 600; // 10 Minuten
+        let duration = 600; 
         let lastTime = Date.now();
         let isRunning = false;
         let isShattered = false;
         let wakeLock = null;
 
-        // Echter Klick schaltet den iOS-Wachhalter frei
+        // BEIM LADEN DER SEITE: Prüfen, ob der Nutzer geschummelt hat
+        window.addEventListener('load', () => {
+            const savedState = localStorage.getItem('soulLock_state');
+            
+            if (savedState === 'RUNNING') {
+                // Ertappt! Die App wurde im laufenden Betrieb geschlossen
+                shatterSoul("Du hast die App mutwillig geschlossen!");
+            } else if (savedState === 'SHATTERED') {
+                // Bleibt gesperrt, bis man aktiv den Reset-Knopf drückt
+                shatterSoul("Deine Seele ist noch immer gebrochen.");
+            } else {
+                document.getElementById('statusText').innerText = "Bereit für das Ritual...";
+            }
+        });
+
         async function startRitual() {
             if (isRunning || isShattered) return;
             
@@ -99,12 +142,13 @@
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
                 }
-            } catch (err) {
-                console.log("Wake Lock vom System blockiert.");
-            }
+            } catch (err) { console.log("WakeLock blockiert."); }
 
             isRunning = true;
+            localStorage.setItem('soulLock_state', 'RUNNING'); // Zustand im iPhone sichern
+            
             document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('ecoBtn').style.display = 'inline-block';
             document.getElementById('glow').style.opacity = '1';
             document.getElementById('aura').innerText = '✨';
             document.getElementById('statusText').innerText = "Seele fixiert. Nicht ablenken lassen...";
@@ -112,7 +156,7 @@
             lastTime = Date.now();
         }
 
-        // Timer läuft jede Sekunde
+        // Haupt-Countdown
         const countdown = setInterval(() => {
             if (!isRunning || isShattered) return;
 
@@ -120,10 +164,9 @@
             const timePassed = currentTime - lastTime;
             lastTime = currentTime;
 
-            // WICHTIG: Wenn der Zeitsprung riesig ist (> 5 Sek), war das Handy vermutlich im automatischen iOS-Sperrzustand. 
-            // In dem Fall pausieren wir das Spiel nur, anstatt es unfair zu zerstören.
-            if (timePassed > 5000) {
-                pauseRitual();
+            // Erkennung für den iOS-Sperrzustand (falls WakeLock fehlschlägt)
+            if (timePassed > 4000) {
+                shatterSoul("Das Handy ging in den Standby!"); 
                 return;
             }
 
@@ -134,43 +177,66 @@
 
             if (duration <= 0) {
                 clearInterval(countdown);
+                isRunning = false;
+                localStorage.setItem('soulLock_state', 'SUCCESS');
                 document.getElementById('aura').innerText = '🔮';
                 document.getElementById('statusText').innerText = "Erfolgreich! Deine Seele ist gestärkt.";
                 document.getElementById('glow').style.borderColor = "#5effa3";
                 document.getElementById('glow').style.boxShadow = "0 0 30px #5effa3";
+                document.getElementById('ecoBtn').style.display = 'none';
+                if(document.body.classList.contains('eco-mode')) toggleEcoMode();
                 if (wakeLock) wakeLock.release();
             }
         }, 1000);
 
-        // Harte Bestrafung NUR, wenn der Nutzer aktiv den Tab wechselt oder die App minimiert
+        // App-Wechsel Erkennung
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'hidden' && isRunning && !isShattered) {
-                // Wenn die App minimiert wird, während sie aktiv läuft -> Bestrafung!
-                shatterSoul("Du bist abgeschweift!");
+                shatterSoul("Du hast die Webseite verlassen!");
             }
         });
 
-        function pauseRitual() {
-            isRunning = false;
-            document.getElementById('aura').innerText = '⏳';
-            document.getElementById('statusText').innerText = "Ritual pausiert (Bildschirm war aus).";
-            document.getElementById('statusText').className = "status";
-            document.getElementById('glow').style.opacity = '0';
-            document.getElementById('startBtn').style.display = 'inline-block';
-            document.getElementById('startBtn').innerText = "Ritual fortsetzen";
-            if (wakeLock) wakeLock.release();
+        // ECO-MODUS (Tiefschwarzer Bildschirm spart Strom auf OLED)
+        function toggleEcoMode() {
+            if (!isRunning || isShattered) return;
+            
+            const body = document.body;
+            const overlay = document.getElementById('eco-overlay');
+            
+            if (!body.classList.contains('eco-mode')) {
+                body.classList.add('eco-mode');
+                overlay.style.display = 'block'; // Aktiviert Klickschutz über dem ganzen Bildschirm
+            } else {
+                body.classList.remove('eco-mode');
+                overlay.style.display = 'none';
+                lastTime = Date.now(); // Zeit-Resync nach dem Aufwachen
+            }
         }
 
         function shatterSoul(reason) {
             isShattered = true;
             isRunning = false;
-            clearInterval(countdown);
+            localStorage.setItem('soulLock_state', 'SHATTERED'); // Permanent merken!
+            
             document.getElementById('aura').innerText = '💥';
             document.getElementById('statusText').innerText = `Gebrochen: ${reason}`;
             document.getElementById('statusText').className = "status dead";
             document.getElementById('glow').style.borderColor = "#ff5e5e";
             document.getElementById('glow').style.boxShadow = "0 0 30px #ff5e5e";
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('ecoBtn').style.display = 'none';
+            document.getElementById('resetBtn').style.display = 'inline-block';
+            
+            if(document.body.classList.contains('eco-mode')) {
+                document.body.classList.remove('eco-mode');
+                document.getElementById('eco-overlay').style.display = 'none';
+            }
             if (wakeLock) wakeLock.release();
+        }
+
+        function forceReset() {
+            localStorage.setItem('soulLock_state', 'IDLE');
+            location.reload(); // Seite neu laden für einen sauberen Neustart
         }
     </script>
 </body>

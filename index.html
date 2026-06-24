@@ -44,12 +44,17 @@
             align-items: center;
             justify-content: center;
             position: relative;
+            box-sizing: border-box;
+            overflow: hidden;
         }
 
+        /* Sprite/Ei füllt die Zelle komplett aus */
         .grid-cell img {
-            width: 85px;
-            height: 85px;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
             image-rendering: pixelated;
+            display: block;
         }
 
         /* Highlight für das zuletzt gefangene Pokémon */
@@ -88,13 +93,18 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            box-sizing: border-box;
+            overflow: hidden;
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
+        /* Sprite/Ei füllt den Inkubator komplett aus */
         #overlaySprite {
-            width: 120px;
-            height: 120px;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
             image-rendering: pixelated;
+            display: block;
         }
 
         #timer {
@@ -155,15 +165,11 @@
         let countdownInterval = null;
 
         window.addEventListener('load', () => {
-            // Hängenden Spielzustand sauber zurücksetzen
             const savedState = localStorage.getItem('soul_state');
             if (savedState === 'RUNNING' || savedState === 'ECO') {
-                // Optional: Wenn du den Cheat-Fail willst, hier triggerCheatFail() aufrufen.
-                // Für jetzt: sauberer Reset, damit das Grid sichtbar ist.
                 localStorage.setItem('soul_state', 'IDLE');
             }
             gameState = 'IDLE';
-
             renderPokedexGrid();
         });
 
@@ -185,18 +191,34 @@
                 const img = document.createElement('img');
                 if (caughtList.includes(id)) {
                     img.src = `${id}.png`;   // Gefangen -> Vorderseite
+                    img.alt = `#${id}`;
                 } else {
-                    img.src = "0.png";       // Nicht gefangen -> Fragezeichen
+                    img.src = "egg.png";     // Noch nicht gefangen -> Ei
+                    img.alt = "egg";
                 }
-                img.alt = `#${id}`;
 
                 cell.appendChild(img);
                 gridContainer.appendChild(cell);
             });
         }
 
+        // Wählt ein noch nicht gefangenes Pokémon für die kommende Brut
+        function pickRewardId() {
+            const caughtList = JSON.parse(localStorage.getItem('caught_ids')) || [];
+            const uncaught = DEX_IDS.filter(id => !caughtList.includes(id));
+
+            if (uncaught.length === 0) {
+                // Alle bereits gefangen -> Fallback: irgendeine ID
+                return DEX_IDS[Math.floor(Math.random() * DEX_IDS.length)];
+            }
+            return uncaught[Math.floor(Math.random() * uncaught.length)];
+        }
+
         async function openOverlayForHatching() {
             if (gameState !== 'IDLE') return;
+
+            // Ziel-Pokémon VOR dem Brüten festlegen, damit Vorder- und Rückseite zusammenpassen
+            currentRewardId = pickRewardId();
 
             gameState = 'RUNNING';
             localStorage.setItem('soul_state', 'RUNNING');
@@ -211,6 +233,7 @@
             document.getElementById('overlay-screen').style.display = 'flex';
             document.getElementById('overlaySprite').src = "egg.png";
             document.getElementById('incubator').style.borderColor = "#38bdf8";
+            document.getElementById('timer').style.color = "#38bdf8";
             updateTimerDisplay();
 
             lastTime = Date.now();
@@ -269,8 +292,7 @@
             gameState = 'SUCCESS';
             localStorage.setItem('soul_state', 'SUCCESS');
 
-            currentRewardId = DEX_IDS[Math.floor(Math.random() * DEX_IDS.length)];
-
+            // currentRewardId wurde bereits beim Start festgelegt
             let caughtList = JSON.parse(localStorage.getItem('caught_ids')) || [];
             if (!caughtList.includes(currentRewardId)) {
                 caughtList.push(currentRewardId);
@@ -278,9 +300,9 @@
             }
             localStorage.setItem('latest_catch_id', currentRewardId);
 
+            // Visuelles Feedback (Erfolg) - nur grüner Rahmen, kein Haken
             document.getElementById('overlaySprite').src = `${currentRewardId}.png`;
             document.getElementById('incubator').style.borderColor = "#4ade80";
-            document.getElementById('timer').innerText = "✓";
 
             if (document.body.classList.contains('eco-mode')) {
                 document.body.classList.remove('eco-mode');
@@ -293,21 +315,15 @@
             gameState = 'FAILED';
             localStorage.setItem('soul_state', 'FAILED');
 
-            currentRewardId = DEX_IDS[Math.floor(Math.random() * DEX_IDS.length)];
-
+            // currentRewardId wurde bereits beim Start festgelegt -> passende Rückseite
             document.getElementById('overlaySprite').src = `${currentRewardId}_back.png`;
             document.getElementById('incubator').style.borderColor = "#f87171";
+            document.getElementById('timer').style.color = "#f87171";
 
             if (document.body.classList.contains('eco-mode')) {
                 document.body.classList.remove('eco-mode');
             }
             if (wakeLock) wakeLock.release();
-        }
-
-        function triggerCheatFail() {
-            document.getElementById('overlay-screen').style.display = 'flex';
-            shatterEgg();
-            document.getElementById('timer').innerText = "✕";
         }
 
         function closeOverlayAndReset() {

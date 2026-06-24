@@ -6,7 +6,7 @@
     <title>SoulLock Pokedex</title>
     <style>
         body {
-            font-family: 'Press Start 2P', monospace;
+            font-family: monospace;
             text-align: center;
             background: #05070f;
             color: #38bdf8;
@@ -155,13 +155,16 @@
         let countdownInterval = null;
 
         window.addEventListener('load', () => {
-            renderPokedexGrid();
-
-            // Schutz-Check bei versehentlichem Schließen
+            // Hängenden Spielzustand sauber zurücksetzen
             const savedState = localStorage.getItem('soul_state');
             if (savedState === 'RUNNING' || savedState === 'ECO') {
-                triggerCheatFail();
+                // Optional: Wenn du den Cheat-Fail willst, hier triggerCheatFail() aufrufen.
+                // Für jetzt: sauberer Reset, damit das Grid sichtbar ist.
+                localStorage.setItem('soul_state', 'IDLE');
             }
+            gameState = 'IDLE';
+
+            renderPokedexGrid();
         });
 
         // Generiert das 2x2 Raster basierend auf dem Speicher
@@ -175,7 +178,6 @@
                 const cell = document.createElement('div');
                 cell.className = 'grid-cell';
 
-                // Highlight für das allerletzte gebrütete Pokémon
                 if (latestCatch && parseInt(latestCatch) === id) {
                     cell.classList.add('latest-catch');
                 }
@@ -186,13 +188,13 @@
                 } else {
                     img.src = "0.png";       // Nicht gefangen -> Fragezeichen
                 }
+                img.alt = `#${id}`;
 
                 cell.appendChild(img);
                 gridContainer.appendChild(cell);
             });
         }
 
-        // Klick auf das Haupt-Raster startet die Brut-Vorbereitung
         async function openOverlayForHatching() {
             if (gameState !== 'IDLE') return;
 
@@ -200,7 +202,6 @@
             localStorage.setItem('soul_state', 'RUNNING');
             duration = 10;
 
-            // Bildschirm-Wachhalter anfordern
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
@@ -225,7 +226,6 @@
                 const timePassed = currentTime - lastTime;
                 lastTime = currentTime;
 
-                // Erkennung für System-Standby/Sperrung
                 if (timePassed > 4000) {
                     shatterEgg();
                     return;
@@ -247,3 +247,82 @@
                 `${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
         }
 
+        function handleOverlayClick() {
+            if (gameState === 'RUNNING') {
+                gameState = 'ECO';
+                localStorage.setItem('soul_state', 'ECO');
+                document.body.classList.add('eco-mode');
+            }
+            else if (gameState === 'ECO') {
+                gameState = 'RUNNING';
+                localStorage.setItem('soul_state', 'RUNNING');
+                document.body.classList.remove('eco-mode');
+                lastTime = Date.now();
+            }
+            else if (gameState === 'SUCCESS' || gameState === 'FAILED') {
+                closeOverlayAndReset();
+            }
+        }
+
+        function triggerSuccess() {
+            clearInterval(countdownInterval);
+            gameState = 'SUCCESS';
+            localStorage.setItem('soul_state', 'SUCCESS');
+
+            currentRewardId = DEX_IDS[Math.floor(Math.random() * DEX_IDS.length)];
+
+            let caughtList = JSON.parse(localStorage.getItem('caught_ids')) || [];
+            if (!caughtList.includes(currentRewardId)) {
+                caughtList.push(currentRewardId);
+                localStorage.setItem('caught_ids', JSON.stringify(caughtList));
+            }
+            localStorage.setItem('latest_catch_id', currentRewardId);
+
+            document.getElementById('overlaySprite').src = `${currentRewardId}.png`;
+            document.getElementById('incubator').style.borderColor = "#4ade80";
+            document.getElementById('timer').innerText = "✓";
+
+            if (document.body.classList.contains('eco-mode')) {
+                document.body.classList.remove('eco-mode');
+            }
+            if (wakeLock) wakeLock.release();
+        }
+
+        function shatterEgg() {
+            clearInterval(countdownInterval);
+            gameState = 'FAILED';
+            localStorage.setItem('soul_state', 'FAILED');
+
+            currentRewardId = DEX_IDS[Math.floor(Math.random() * DEX_IDS.length)];
+
+            document.getElementById('overlaySprite').src = `${currentRewardId}_back.png`;
+            document.getElementById('incubator').style.borderColor = "#f87171";
+
+            if (document.body.classList.contains('eco-mode')) {
+                document.body.classList.remove('eco-mode');
+            }
+            if (wakeLock) wakeLock.release();
+        }
+
+        function triggerCheatFail() {
+            document.getElementById('overlay-screen').style.display = 'flex';
+            shatterEgg();
+            document.getElementById('timer').innerText = "✕";
+        }
+
+        function closeOverlayAndReset() {
+            gameState = 'IDLE';
+            localStorage.setItem('soul_state', 'IDLE');
+            document.getElementById('overlay-screen').style.display = 'none';
+            renderPokedexGrid();
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' &&
+                (gameState === 'RUNNING' || gameState === 'ECO')) {
+                shatterEgg();
+            }
+        });
+    </script>
+</body>
+</html>

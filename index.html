@@ -20,7 +20,6 @@
             -webkit-user-select: none; 
         }
         
-        /* FULL SCREEN OLED ECO MODE */
         body.eco-mode { background: #000000 !important; }
         body.eco-mode button, body.eco-mode #timer, body.eco-mode #collection {
             opacity: 0 !important;
@@ -59,7 +58,6 @@
             transition: opacity 0.3s; 
         }
         
-        /* Pure 8-Bit Pixel Buttons */
         button {
             background: #0f172a; 
             color: #38bdf8; 
@@ -122,14 +120,13 @@
     </div>
 
     <script>
-        // Sicheres, ausfallsicheres CDN für die originalen Game Boy Sprites
-        const BASE_URL = "https://jsdelivr.net";
+        // Neues, stabileres unpkg-CDN für die Original-Sprites [1]
+        const BASE_URL = "https://unpkg.com";
         
-        // Originale Sprites für Ei und Fossil (Zerstört)
-        const EGG_SPRITE = "https://jsdelivr.net";
+        const EGG_SPRITE = "https://unpkg.com";
         const FAIL_SPRITE = BASE_URL + "141.png"; 
 
-        let duration = 10; // 10 Sekunden Test-Timer
+        let duration = 10; 
         let lastTime = Date.now();
         let isRunning = false;
         let isShattered = false;
@@ -182,7 +179,6 @@
                 isRunning = false;
                 localStorage.setItem('pet151_state', 'SUCCESS');
                 
-                // Zieht ein zufälliges Pokémon aus den ersten 151
                 const randomId = Math.floor(Math.random() * 151) + 1;
                 const pokemonSpriteUrl = BASE_URL + randomId + ".png";
                 

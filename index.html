@@ -5,15 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PokeZen</title>
 
-    <!-- iOS Web App Meta -->
+    <!-- Web App Meta -->
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="PokeZen">
     <meta name="theme-color" content="#000000">
 
-    <!-- Pokeball auf schwarzem Hintergrund als Home-Screen Icon -->
-    pokezen-icon.png
-    pokezen-icon.png
+    <!-- Home-Screen Icon -->
+    <link rel="apple-touch-icon" href="pokezen-icon.png">
+    <link rel="icon" href="pokezen-icon.png">
 
     <style>
         body {
@@ -117,7 +118,6 @@
             display: block;
         }
 
-        /* Wackel-Animation während des Brütens */
         #overlaySprite.wiggle {
             animation: wiggle 1s infinite ease-in-out;
             transform-origin: 50% 80%;
@@ -172,7 +172,6 @@
         body.eco-mode #overlaySprite {
             filter: brightness(0) invert(1) drop-shadow(0 0 4px #38bdf8);
         }
-        /* Wackeln im Dimm-Modus dezenter, aber weiter sichtbar */
         body.eco-mode #overlaySprite.wiggle {
             animation: wiggle 1.2s infinite ease-in-out;
         }
@@ -207,7 +206,7 @@
     <!-- Modal-Overlay -->
     <div id="overlay-screen" onclick="handleOverlayClick()">
         <div id="incubator">
-            poke-ball.png
+            <img id="overlaySprite" src="poke-ball.png" alt="status">
         </div>
         <div id="timer">00:10</div>
         <button id="resetBtn" onclick="resetGame(event)">Reset?</button>
@@ -254,7 +253,7 @@
                     img.src = `${id}.png`;
                     img.alt = `#${id}`;
                 } else {
-                    img.src = BALL_SRC;     // Pokeball als Platzhalter
+                    img.src = BALL_SRC;
                     img.alt = "pokeball";
                 }
                 cell.appendChild(img);
@@ -278,6 +277,7 @@
 
         function setSprite(src, { wiggle = false } = {}) {
             const sprite = document.getElementById('overlaySprite');
+            if (!sprite) return; // Defensive: falls Element noch nicht im DOM
             sprite.src = src;
             sprite.classList.toggle('wiggle', wiggle);
         }
@@ -373,7 +373,6 @@
                 lastTime = Date.now();
             }
             else if (gameState === 'SUCCESS') {
-                // Wenn wir noch im Dimm-Erfolg sind, erst Modal voll sichtbar machen
                 if (document.body.classList.contains('eco-mode')) {
                     document.body.classList.remove('eco-mode');
                     document.body.classList.remove('eco-success');
@@ -399,7 +398,6 @@
             }
             localStorage.setItem('latest_catch_id', currentRewardId);
 
-            // Pokeball -> gefangenes Pokémon, kein Wackeln mehr
             setSprite(`${currentRewardId}.png`, { wiggle: false });
             document.getElementById('incubator').style.borderColor = "#4ade80";
             document.getElementById('timer').style.color = "#4ade80";

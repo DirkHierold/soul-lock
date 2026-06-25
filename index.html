@@ -3,7 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SoulLock Pokedex</title>
+    <title>PokeZen</title>
+
+    <!-- iOS Web App Meta -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PokeZen">
+    <meta name="theme-color" content="#000000">
+
+    <!-- Pokeball auf schwarzem Hintergrund als Home-Screen Icon -->
+    pokezen-icon.png
+    pokezen-icon.png
+
     <style>
         body {
             font-family: monospace;
@@ -67,7 +78,7 @@
             100% { box-shadow: 0 0 5px #4ade80; }
         }
 
-        /* 2. OVERLAY als Modal - halbtransparenter Backdrop, Grid bleibt sichtbar */
+        /* 2. OVERLAY als Modal */
         #overlay-screen {
             display: none;
             position: fixed;
@@ -106,13 +117,26 @@
             display: block;
         }
 
+        /* Wackel-Animation während des Brütens */
+        #overlaySprite.wiggle {
+            animation: wiggle 1s infinite ease-in-out;
+            transform-origin: 50% 80%;
+        }
+        @keyframes wiggle {
+            0%   { transform: rotate(0deg); }
+            15%  { transform: rotate(-8deg); }
+            30%  { transform: rotate(0deg); }
+            45%  { transform: rotate(8deg); }
+            60%  { transform: rotate(0deg); }
+            100% { transform: rotate(0deg); }
+        }
+
         #timer {
             font-size: 32px;
             margin-top: 30px;
             color: #38bdf8;
         }
 
-        /* Reset-Button (nur im RESET_PROMPT sichtbar) */
         #resetBtn {
             display: none;
             margin-top: 30px;
@@ -129,7 +153,7 @@
             color: #0f172a;
         }
 
-        /* DIMM-Modus: Grid weg, kein sichtbares Overlay, nur pulsierendes Ei */
+        /* DIMM-Modus */
         body.eco-mode #pokedex-screen { visibility: hidden; }
         body.eco-mode #overlay-screen {
             background: #000000 !important;
@@ -148,27 +172,34 @@
         body.eco-mode #overlaySprite {
             filter: brightness(0) invert(1) drop-shadow(0 0 4px #38bdf8);
         }
+        /* Wackeln im Dimm-Modus dezenter, aber weiter sichtbar */
+        body.eco-mode #overlaySprite.wiggle {
+            animation: wiggle 1.2s infinite ease-in-out;
+        }
         @keyframes pulse-eco {
             0%   { opacity: 0.6; }
             50%  { opacity: 1; }
             100% { opacity: 0.6; }
         }
 
-        /* DIMM-Modus + Erfolg: grünes Pulsieren */
+        /* DIMM-Modus + Erfolg: grünliches Pulsieren am gefangenen Pokémon */
+        body.eco-mode.eco-success #incubator {
+            animation: none;
+        }
         body.eco-mode.eco-success #overlaySprite {
-            filter: brightness(0) invert(1) drop-shadow(0 0 6px #4ade80);
+            filter: drop-shadow(0 0 8px #4ade80) drop-shadow(0 0 16px #4ade80);
             animation: pulse-eco-success 1.4s infinite ease-in-out;
         }
         @keyframes pulse-eco-success {
-            0%   { opacity: 0.7; transform: scale(1); }
-            50%  { opacity: 1;   transform: scale(1.15); }
-            100% { opacity: 0.7; transform: scale(1); }
+            0%   { opacity: 0.75; transform: scale(1); }
+            50%  { opacity: 1;    transform: scale(1.12); }
+            100% { opacity: 0.75; transform: scale(1); }
         }
     </style>
 </head>
 <body>
 
-    <!-- Start-Screen mit Pokedex-Raster (immer im Hintergrund sichtbar) -->
+    <!-- Start-Screen mit Pokedex-Raster -->
     <div id="pokedex-screen" onclick="openOverlayForHatching()">
         <div class="grid-2x2" id="pokedexGrid"></div>
     </div>
@@ -176,7 +207,7 @@
     <!-- Modal-Overlay -->
     <div id="overlay-screen" onclick="handleOverlayClick()">
         <div id="incubator">
-            <img id="overlaySprite" src="egg.png" alt="status">
+            poke-ball.png
         </div>
         <div id="timer">00:10</div>
         <button id="resetBtn" onclick="resetGame(event)">Reset?</button>
@@ -184,6 +215,7 @@
 
     <script>
         const DEX_IDS = [1, 4, 7, 25];
+        const BALL_SRC = "poke-ball.png";
 
         let duration = 10;
         let lastTime = Date.now();
@@ -222,8 +254,8 @@
                     img.src = `${id}.png`;
                     img.alt = `#${id}`;
                 } else {
-                    img.src = "egg.png";
-                    img.alt = "egg";
+                    img.src = BALL_SRC;     // Pokeball als Platzhalter
+                    img.alt = "pokeball";
                 }
                 cell.appendChild(img);
                 gridContainer.appendChild(cell);
@@ -244,10 +276,15 @@
             return uncaught[Math.floor(Math.random() * uncaught.length)];
         }
 
+        function setSprite(src, { wiggle = false } = {}) {
+            const sprite = document.getElementById('overlaySprite');
+            sprite.src = src;
+            sprite.classList.toggle('wiggle', wiggle);
+        }
+
         async function openOverlayForHatching() {
             if (gameState !== 'IDLE') return;
 
-            // Alles gefangen? -> Reset-Prompt statt Brüten
             if (allCaught()) {
                 openResetPrompt();
                 return;
@@ -266,7 +303,7 @@
             } catch (err) {}
 
             document.getElementById('overlay-screen').style.display = 'flex';
-            document.getElementById('overlaySprite').src = "egg.png";
+            setSprite(BALL_SRC, { wiggle: true });
             document.getElementById('incubator').style.borderColor = "#38bdf8";
             document.getElementById('timer').style.color = "#38bdf8";
             document.getElementById('timer').style.display = "block";
@@ -280,7 +317,7 @@
         function openResetPrompt() {
             gameState = 'RESET_PROMPT';
             document.getElementById('overlay-screen').style.display = 'flex';
-            document.getElementById('overlaySprite').src = "egg.png";
+            setSprite(BALL_SRC, { wiggle: false });
             document.getElementById('incubator').style.borderColor = "#38bdf8";
             document.getElementById('timer').style.display = "none";
             document.getElementById('resetBtn').style.display = "inline-block";
@@ -335,7 +372,16 @@
                 document.body.classList.remove('eco-mode');
                 lastTime = Date.now();
             }
-            else if (gameState === 'SUCCESS' || gameState === 'FAILED' || gameState === 'RESET_PROMPT') {
+            else if (gameState === 'SUCCESS') {
+                // Wenn wir noch im Dimm-Erfolg sind, erst Modal voll sichtbar machen
+                if (document.body.classList.contains('eco-mode')) {
+                    document.body.classList.remove('eco-mode');
+                    document.body.classList.remove('eco-success');
+                    return;
+                }
+                closeOverlayAndReset();
+            }
+            else if (gameState === 'FAILED' || gameState === 'RESET_PROMPT') {
                 closeOverlayAndReset();
             }
         }
@@ -353,12 +399,12 @@
             }
             localStorage.setItem('latest_catch_id', currentRewardId);
 
-            document.getElementById('overlaySprite').src = `${currentRewardId}.png`;
+            // Pokeball -> gefangenes Pokémon, kein Wackeln mehr
+            setSprite(`${currentRewardId}.png`, { wiggle: false });
             document.getElementById('incubator').style.borderColor = "#4ade80";
             document.getElementById('timer').style.color = "#4ade80";
 
             if (wasInEco) {
-                // Im Dimm-Modus bleiben, grün pulsieren, vibrieren, kleinen Ton spielen
                 document.body.classList.add('eco-success');
                 celebrateInEco();
             }
@@ -367,11 +413,9 @@
         }
 
         function celebrateInEco() {
-            // Vibration
             if ('vibrate' in navigator) {
                 try { navigator.vibrate([120, 60, 120]); } catch(e) {}
             }
-            // Kleiner Ton via Web Audio (kein File nötig)
             try {
                 const AudioCtx = window.AudioContext || window.webkitAudioContext;
                 const ctx = new AudioCtx();
@@ -395,12 +439,13 @@
             gameState = 'FAILED';
             localStorage.setItem('soul_state', 'FAILED');
 
-            document.getElementById('overlaySprite').src = `${currentRewardId}_back.png`;
+            setSprite(`${currentRewardId}_back.png`, { wiggle: false });
             document.getElementById('incubator').style.borderColor = "#f87171";
             document.getElementById('timer').style.color = "#f87171";
 
             if (document.body.classList.contains('eco-mode')) {
                 document.body.classList.remove('eco-mode');
+                document.body.classList.remove('eco-success');
             }
             if (wakeLock) wakeLock.release();
         }
@@ -414,6 +459,7 @@
             document.getElementById('resetBtn').style.display = "none";
             document.getElementById('timer').style.display = "block";
             document.getElementById('timer').style.color = "#38bdf8";
+            setSprite(BALL_SRC, { wiggle: false });
             renderPokedexGrid();
         }
 

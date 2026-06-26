@@ -40,8 +40,15 @@
         .grid-2x2 {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
+            gap: 20px 20px;
             max-width: 260px;
+        }
+
+        .grid-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
         }
 
         .grid-cell {
@@ -70,6 +77,14 @@
             width: 70%;
             height: 70%;
             margin: auto;
+        }
+
+        .grid-label {
+            font-size: 11px;
+            color: #38bdf8;
+            text-align: center;
+            white-space: nowrap;
+            letter-spacing: 0.5px;
         }
 
         .grid-cell.latest-catch {
@@ -134,9 +149,17 @@
             100% { transform: rotate(0deg); }
         }
 
+        #overlayLabel {
+            margin-top: 18px;
+            font-size: 14px;
+            color: #4ade80;
+            min-height: 18px;
+            letter-spacing: 0.5px;
+        }
+
         #timer {
             font-size: 32px;
-            margin-top: 30px;
+            margin-top: 16px;
             color: #38bdf8;
         }
 
@@ -156,6 +179,7 @@
             color: #0f172a;
         }
 
+        /* DIMM-Modus */
         body.eco-mode #pokedex-screen { visibility: hidden; }
         body.eco-mode #overlay-screen {
             background: #000000 !important;
@@ -163,29 +187,26 @@
             -webkit-backdrop-filter: none !important;
         }
         body.eco-mode #timer { opacity: 0 !important; }
+        body.eco-mode #overlayLabel { opacity: 0 !important; }
         body.eco-mode #resetBtn { opacity: 0 !important; }
         body.eco-mode #incubator {
             transform: scale(0.45);
             background: transparent !important;
-            border-color: rgba(56, 189, 248, 0) !important;
+            border-color: transparent !important;
             box-shadow: none !important;
-            animation: pulse-eco 2.5s infinite ease-in-out;
         }
+        /* Pokeball/Pokemon im Dimm: weiße Silhouette + Puls (kein Wackeln, kein Schimmer) */
         body.eco-mode #overlaySprite {
-            filter: brightness(0) invert(1) drop-shadow(0 0 4px #38bdf8);
+            filter: brightness(0) invert(1);
+            animation: pulse-eco-success 1.6s infinite ease-in-out;
+            transform-origin: center !important;
         }
         body.eco-mode #overlaySprite.wiggle {
-            animation: wiggle 1.2s infinite ease-in-out;
-        }
-        @keyframes pulse-eco {
-            0%   { opacity: 0.6; }
-            50%  { opacity: 1; }
-            100% { opacity: 0.6; }
+            animation: pulse-eco-success 1.6s infinite ease-in-out;
+            transform-origin: center !important;
         }
 
-        body.eco-mode.eco-success #incubator {
-            animation: none;
-        }
+        /* DIMM + Erfolg: zusätzlich grüner Schimmer */
         body.eco-mode.eco-success #overlaySprite {
             filter:
                 brightness(0) invert(1)
@@ -194,10 +215,11 @@
                 drop-shadow(0 0 22px rgba(74, 222, 128, 0.6));
             animation: pulse-eco-success 1.4s infinite ease-in-out;
         }
+
         @keyframes pulse-eco-success {
-            0%   { opacity: 0.75; transform: scale(1); }
-            50%  { opacity: 1;    transform: scale(1.12); }
-            100% { opacity: 0.75; transform: scale(1); }
+            0%   { opacity: 0.7; transform: scale(1); }
+            50%  { opacity: 1;   transform: scale(1.12); }
+            100% { opacity: 0.7; transform: scale(1); }
         }
     </style>
 </head>
@@ -209,8 +231,9 @@
 
     <div id="overlay-screen" onclick="handleOverlayClick()">
         <div id="incubator">
-            <img id="overlaySprite" src="poke-ball.png" alt="status">
+            poke-ball.png
         </div>
+        <div id="overlayLabel"></div>
         <div id="timer">00:10</div>
         <button id="resetBtn" onclick="resetGame(event)">Reset?</button>
     </div>
@@ -218,6 +241,13 @@
     <script>
         const DEX_IDS = [1, 4, 7, 25];
         const BALL_SRC = "poke-ball.png";
+
+        const POKEMON_NAMES = {
+            1:  'Bisasam',
+            4:  'Glumanda',
+            7:  'Schiggy',
+            25: 'Pikachu'
+        };
 
         let duration = 10;
         let lastTime = Date.now();
@@ -236,6 +266,11 @@
             renderPokedexGrid();
         });
 
+        function labelFor(id) {
+            const name = POKEMON_NAMES[id] || '???';
+            return `#${id} ${name}`;
+        }
+
         function renderPokedexGrid() {
             const caughtList = JSON.parse(localStorage.getItem('caught_ids')) || [];
             const latestCatch = localStorage.getItem('latest_catch_id');
@@ -243,6 +278,9 @@
             gridContainer.innerHTML = "";
 
             DEX_IDS.forEach(id => {
+                const item = document.createElement('div');
+                item.className = 'grid-item';
+
                 const cell = document.createElement('div');
                 cell.className = 'grid-cell';
 
@@ -253,14 +291,21 @@
                 const img = document.createElement('img');
                 if (caughtList.includes(id)) {
                     img.src = `${id}.png`;
-                    img.alt = `#${id}`;
+                    img.alt = labelFor(id);
                 } else {
                     img.src = BALL_SRC;
                     img.alt = "pokeball";
                     img.classList.add('is-ball');
                 }
                 cell.appendChild(img);
-                gridContainer.appendChild(cell);
+
+                const label = document.createElement('div');
+                label.className = 'grid-label';
+                label.innerText = labelFor(id);
+
+                item.appendChild(cell);
+                item.appendChild(label);
+                gridContainer.appendChild(item);
             });
         }
 
@@ -278,12 +323,26 @@
             return uncaught[Math.floor(Math.random() * uncaught.length)];
         }
 
+        // Preload-basierter Sprite-Wechsel: kein Größensprung beim Schlüpfen
         function setSprite(src, { wiggle = false } = {}) {
             const sprite = document.getElementById('overlaySprite');
             if (!sprite) return;
-            sprite.src = src;
-            sprite.classList.toggle('wiggle', wiggle);
-            sprite.classList.toggle('is-ball', src === BALL_SRC);
+            const isBall = src === BALL_SRC;
+
+            const apply = () => {
+                sprite.src = src;
+                sprite.classList.toggle('wiggle', wiggle);
+                sprite.classList.toggle('is-ball', isBall);
+            };
+
+            const preload = new Image();
+            preload.onload = apply;
+            preload.onerror = apply;
+            preload.src = src;
+        }
+
+        function setOverlayLabel(text) {
+            document.getElementById('overlayLabel').innerText = text || '';
         }
 
         async function openOverlayForHatching() {
@@ -308,6 +367,7 @@
 
             document.getElementById('overlay-screen').style.display = 'flex';
             setSprite(BALL_SRC, { wiggle: true });
+            setOverlayLabel('');
             document.getElementById('incubator').style.borderColor = "#38bdf8";
             document.getElementById('timer').style.color = "#38bdf8";
             document.getElementById('timer').style.display = "block";
@@ -322,6 +382,7 @@
             gameState = 'RESET_PROMPT';
             document.getElementById('overlay-screen').style.display = 'flex';
             setSprite(BALL_SRC, { wiggle: false });
+            setOverlayLabel('');
             document.getElementById('incubator').style.borderColor = "#38bdf8";
             document.getElementById('timer').style.display = "none";
             document.getElementById('resetBtn').style.display = "inline-block";
@@ -403,6 +464,7 @@
             localStorage.setItem('latest_catch_id', currentRewardId);
 
             setSprite(`${currentRewardId}.png`, { wiggle: false });
+            setOverlayLabel(labelFor(currentRewardId));
             document.getElementById('incubator').style.borderColor = "#4ade80";
             document.getElementById('timer').style.color = "#4ade80";
 
@@ -442,6 +504,7 @@
             localStorage.setItem('soul_state', 'FAILED');
 
             setSprite(`${currentRewardId}_back.png`, { wiggle: false });
+            setOverlayLabel('');
             document.getElementById('incubator').style.borderColor = "#f87171";
             document.getElementById('timer').style.color = "#f87171";
 
@@ -462,6 +525,7 @@
             document.getElementById('timer').style.display = "block";
             document.getElementById('timer').style.color = "#38bdf8";
             setSprite(BALL_SRC, { wiggle: false });
+            setOverlayLabel('');
             renderPokedexGrid();
         }
 

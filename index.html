@@ -479,7 +479,7 @@
             149: 148
         };
 
-        let duration = 10;
+        let duration = 25*60;
         let lastTime = Date.now();
 
         let gameState = 'IDLE';
@@ -623,7 +623,7 @@
 
             gameState = 'RUNNING';
             localStorage.setItem('soul_state', 'RUNNING');
-            duration = 10;
+            duration = 25*60;
 
             try {
                 if ('wakeLock' in navigator) {
